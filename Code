@@ -1,0 +1,79 @@
+#Used to find student default loan rate characteristics
+#Simple logisitic regression through python --source file on line 10
+
+import pandas as pd
+import numpy as np
+import pickle
+from sklearn.model_selection import train_test_split
+from sklearn import preprocessing
+from sklearn.linear_model import LogisticRegression
+#r'https://d1pqsl2386xqi9.cloudfront.net/notebooks/Default.csv'
+
+class Classifier:
+    def __init__(self, csv_file):
+        self.data = pd.read_csv(csv_file)
+        self.transform()
+
+    def transform(self):
+    
+        result_df = self.data.copy()
+        result_df = self.convert_columns_to_binary(
+            result_df, ['default', 'student'])
+
+        self.x = result_df[['student', 'balance', 'income']]
+        self.y = np.ravel(result_df[['default']])
+  
+        self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(
+            self.x, self.y, test_size=0.1, random_state=33)
+  
+        self.scaler = preprocessing.StandardScaler().fit(self.x_train)
+        return None
+
+    def convert_columns_to_binary(self, df, column_names):
+        for column_name in column_names:
+            df[column_name] = np.where(df[column_name] == 'No', '0', '1')
+        return df
+
+    def train(self):
+        transformed_x = self.scaler.transform(self.x_train)
+        self.model = LogisticRegression(
+            penalty='none', solver='newton-cg', random_state=150, max_iter=10000).fit(transformed_x, self.y_train)
+        return None
+
+    def get_model_coef(self):
+        coeff_arr = self.model.coef_.ravel()
+        intercept_arr = self.model.intercept_
+        return np.concatenate((coeff_arr, intercept_arr))
+
+
+    def test(self, x_values):
+
+        if isinstance(x_values, list):
+            x_values = np.array(x_values)
+        if np.shape(x_values) == (3,):
+            x_values = np.reshape(x_values, (1, 3))
+        if type(x_values) not in [pd.core.frame.DataFrame, np.ndarray]:
+            print("Input type must be a pandas DataFrame or a numpy array")
+            raise SystemExit
+        if np.shape(x_values)[1] != 3:
+            print("Bad input shape")
+            raise SystemExit
+
+        transformed = self.scaler.transform(x_values)
+        prediction = self.model.predict(transformed)
+
+
+    def save_model(self, filepath):
+        with open(filepath, 'wb') as file:
+            pickle.dump(self.model, file)
+        return None
+
+    def read_model(self, filepath):
+        with open(filepath, 'rb') as file:
+            self.model = pickle.load(file)
+
+
+cl = Classifier(r'Default.csv')
+cl.train()
+cl.get_model_coef()
+cl.test(cl.x_train)
